@@ -8,7 +8,8 @@ namespace Demonstration
         {
             new Pipeline().Generate(".\\Generated Tests", new string[] { "f:\\Projects\\Visual Studio\\TestsGenerator\\TestsGeneratorLibrary\\TestsGenerator.cs",
                                                                          "f:\\=university=\\3 Курс\\СПП\\Lab1_Tracer\\TraceLib\\Tracer.cs",
-                                                                         "f:\\=university=\\3 Курс\\СПП\\Lab2_Faker\\FakerLib\\Faker.cs"}, 1);
+                                                                         "f:\\=university=\\3 Курс\\СПП\\Lab2_Faker\\FakerLib\\Faker.cs",
+                                                                         "f:\\Projects\\Visual Studio\\TestsGenerator\\Demonstration\\TestPurposeClass.cs"}, 1);
         }
     }
 }

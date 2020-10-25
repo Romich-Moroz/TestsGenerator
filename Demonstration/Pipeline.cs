@@ -1,57 +1,44 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
 using TestsGeneratorLibrary;
+using static TestsGeneratorLibrary.TestsGenerator;
 
 namespace Demonstration
 {
     class Pipeline
     {
-        struct FileContent
-        {
-            public string filename;
-            public string content;
-        }
-
-        private static TestsGenerator generator = new TestsGenerator();
-
-        private TransformBlock<string, FileContent> loadFile;
-        private TransformBlock<FileContent, FileContent> generateTests;
-        private ActionBlock<FileContent> writeFile;
-
-        private DataflowLinkOptions linkOptions = new DataflowLinkOptions { PropagateCompletion = true };
-
 
         public void Generate(string destFolder, string[] filenames, int maxPipelineTasks)
         {
-
+            TestsGenerator generator = new TestsGenerator();
+            var execOptions = new ExecutionDataflowBlockOptions { MaxDegreeOfParallelism = maxPipelineTasks };
+            var linkOptions = new DataflowLinkOptions { PropagateCompletion = true };
+            
             Directory.CreateDirectory(destFolder);
 
-            loadFile = new TransformBlock<string, FileContent>
+            TransformBlock<string, string> loadFile = new TransformBlock<string, string>
                 (
-                    async path => new FileContent 
+                    async path => await File.ReadAllTextAsync(path),
+                    execOptions
+                );
+            TransformBlock<string, FileContent[]> generateTests = new TransformBlock<string, FileContent[]>
+                (
+                    async sourceCode => await Task.Run(() => generator.GenerateTests(sourceCode)),
+                    execOptions
+                );
+            ActionBlock<FileContent[]> writeFile = new ActionBlock<FileContent[]>
+                (
+                    async filesContent =>
                     {
-                        filename = destFolder + '\\' + Path.GetFileNameWithoutExtension(path) + "Tests.cs",
-                        content = await File.ReadAllTextAsync(path) 
+                        foreach (FileContent f in filesContent)
+                            await File.WriteAllTextAsync(destFolder + '\\' + f.filename + ".cs", f.content);
                     },
-                    new ExecutionDataflowBlockOptions { MaxDegreeOfParallelism = maxPipelineTasks }
-                );
-            generateTests = new TransformBlock<FileContent, FileContent>
-                (
-                    async fileContent => new FileContent 
-                    { 
-                        filename = fileContent.filename,
-                        content = await Task.Run( () => generator.GenerateTests(fileContent.content) ) 
-                    },
-                    new ExecutionDataflowBlockOptions { MaxDegreeOfParallelism = maxPipelineTasks }
-                );
-            writeFile = new ActionBlock<FileContent>
-                (
-                    async fileContent => await File.WriteAllTextAsync(fileContent.filename, fileContent.content),
-                    new ExecutionDataflowBlockOptions { MaxDegreeOfParallelism = maxPipelineTasks }
+                    execOptions
                 );
 
             loadFile.LinkTo(generateTests, linkOptions);
