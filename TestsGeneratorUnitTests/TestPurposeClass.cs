@@ -2,12 +2,17 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace Demonstration
+namespace TestsGeneratorUnitTests
 {
     class TestPurposeClass
     {
 
-        public class IFoo
+        public interface IFoo
+        {
+
+        }
+
+        public class Foo : IFoo
         {
 
         }
