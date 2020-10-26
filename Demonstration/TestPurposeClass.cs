@@ -2,6 +2,14 @@
 using System.Collections.Generic;
 using System.Text;
 
+namespace CustomNamespace
+{
+    public class Custom
+    {
+
+    }
+}
+
 namespace TestsGeneratorLibrary
 {
 

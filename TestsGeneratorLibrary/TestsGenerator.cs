@@ -15,10 +15,15 @@ namespace TestsGeneratorLibrary
         private static readonly AttributeSyntax setupAttribute = SyntaxFactory.Attribute(SyntaxFactory.ParseName("SetUp"));
         private static readonly AttributeSyntax testAttribute = SyntaxFactory.Attribute(SyntaxFactory.ParseName("Test"));
 
-        private static UsingDirectiveSyntax[] GenerateUsings(SyntaxNode root)
-        {
+        private static UsingDirectiveSyntax[] GenerateUsings(SyntaxNode root, ClassDeclarationSyntax context)
+        {           
+            SyntaxNode node = context.Parent;
+            while (node.GetType() != typeof(NamespaceDeclarationSyntax))
+                node = node.Parent;
+            NamespaceDeclarationSyntax nspace = node as NamespaceDeclarationSyntax;
+            
             return root.DescendantNodes().OfType<UsingDirectiveSyntax>().
-                   Prepend(SyntaxFactory.UsingDirective(root.DescendantNodes().OfType<NamespaceDeclarationSyntax>().First().Name)).
+                   Prepend(SyntaxFactory.UsingDirective(SyntaxFactory.ParseName(nspace.Name.ToString()))).
                    Append(SyntaxFactory.UsingDirective(SyntaxFactory.ParseName("NUnit.Framework"))).
                    Append(SyntaxFactory.UsingDirective(SyntaxFactory.ParseName("Moq"))).
                    ToArray();            
@@ -147,40 +152,45 @@ namespace TestsGeneratorLibrary
             string ctorArgs = "";
             if (!classContext.Modifiers.Any(SyntaxKind.StaticKeyword))
             {
-                foreach (ParameterSyntax parameter in classContext.Members.OfType<ConstructorDeclarationSyntax>().
-                                                                          Where(ctor => ctor.Modifiers.
-                                                                          Any(SyntaxKind.PublicKeyword))?.
-                                                                          FirstOrDefault()?.
-                                                                          ParameterList?.
-                                                                          Parameters)
+                ParameterSyntax[] parameters = classContext.Members.OfType<ConstructorDeclarationSyntax>().
+                                                                    Where(ctor => ctor.Modifiers.
+                                                                    Any(SyntaxKind.PublicKeyword))?.
+                                                                    FirstOrDefault()?.
+                                                                    ParameterList.
+                                                                    Parameters.ToArray();
+                if (parameters != null)
                 {
-                    string identifier;
-                    if (parameter.Type.ToString()[0] != 'I')
+                    foreach (ParameterSyntax parameter in parameters)
                     {
-                        identifier = parameter.Identifier.ValueText;
-                        statements.Add(GenerateAssignStatementFromTemplate
-                            (
-                                parameter.Type.ToString(),
-                                identifier,
-                                false,
-                                parameter.Type.ToString() == "string" ? "\"\"" : "default"
-                            ));
+                        string identifier;
+                        if (parameter.Type.ToString()[0] != 'I')
+                        {
+                            identifier = parameter.Identifier.ValueText;
+                            statements.Add(GenerateAssignStatementFromTemplate
+                                (
+                                    parameter.Type.ToString(),
+                                    identifier,
+                                    false,
+                                    parameter.Type.ToString() == "string" ? "\"\"" : "default"
+                                ));
+                        }
+                        else
+                        {
+                            identifier = GetPrivateDependencyName(parameter.Identifier.ValueText) + ".Object";
+                            statements.Add(GenerateAssignStatementFromTemplate
+                                (
+                                    "",
+                                    GetPrivateDependencyName(parameter.Identifier.ValueText),
+                                    true,
+                                    GetMockTypeName(parameter.Type.ToString())
+                                ));
+                        }
+                        ctorArgs += identifier + ',';
                     }
-                    else
-                    {
-                        identifier = GetPrivateDependencyName(parameter.Identifier.ValueText) + ".Object";
-                        statements.Add(GenerateAssignStatementFromTemplate
-                            (
-                                "",
-                                GetPrivateDependencyName(parameter.Identifier.ValueText),
-                                true,
-                                GetMockTypeName(parameter.Type.ToString())
-                            ));
-                    }
-                    ctorArgs += identifier + ',';
+                    if (ctorArgs.Length != 0)
+                        ctorArgs = ctorArgs.Remove(ctorArgs.Length - 1, 1);
                 }
-                if (ctorArgs.Length != 0)
-                    ctorArgs = ctorArgs.Remove(ctorArgs.Length - 1, 1);
+                
 
                 statements.Add(GenerateAssignStatementFromTemplate
                     (
@@ -312,7 +322,7 @@ namespace TestsGeneratorLibrary
         {
             return root.DescendantNodes().OfType<ClassDeclarationSyntax>().
                 Select(classDecl => SyntaxFactory.CompilationUnit().
-                AddUsings(GenerateUsings(root)).
+                AddUsings(GenerateUsings(root,classDecl)).
                 AddMembers(GenerateNamespace(classDecl))).
                 ToArray();
         }
