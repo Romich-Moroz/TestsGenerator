@@ -3,21 +3,19 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System.Linq;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 
 namespace TestsGeneratorLibrary
 {
-    public class TestsGenerator
+    public static class TestsGenerator
     {
+        private static readonly SyntaxToken publicModifier = SyntaxFactory.Token(SyntaxKind.PublicKeyword);
+        private static readonly SyntaxToken privateModifier = SyntaxFactory.Token(SyntaxKind.PrivateKeyword);
+        private static readonly TypeSyntax voidReturnType = SyntaxFactory.ParseTypeName("void");
+        private static readonly AttributeSyntax setupAttribute = SyntaxFactory.Attribute(SyntaxFactory.ParseName("SetUp"));
+        private static readonly AttributeSyntax testAttribute = SyntaxFactory.Attribute(SyntaxFactory.ParseName("Test"));
 
-        private SyntaxNode root;        
-
-        private readonly SyntaxToken publicModifier = SyntaxFactory.Token(SyntaxKind.PublicKeyword);
-        private readonly SyntaxToken privateModifier = SyntaxFactory.Token(SyntaxKind.PrivateKeyword);
-        private readonly TypeSyntax voidReturnType = SyntaxFactory.ParseTypeName("void");
-        private readonly AttributeSyntax setupAttribute = SyntaxFactory.Attribute(SyntaxFactory.ParseName("SetUp"));
-        private readonly AttributeSyntax testAttribute = SyntaxFactory.Attribute(SyntaxFactory.ParseName("Test"));
-
-        private UsingDirectiveSyntax[] GenerateUsings()
+        private static UsingDirectiveSyntax[] GenerateUsings(SyntaxNode root)
         {
             return root.DescendantNodes().OfType<UsingDirectiveSyntax>().
                    Prepend(SyntaxFactory.UsingDirective(root.DescendantNodes().OfType<NamespaceDeclarationSyntax>().First().Name)).
@@ -25,13 +23,13 @@ namespace TestsGeneratorLibrary
                    Append(SyntaxFactory.UsingDirective(SyntaxFactory.ParseName("Moq"))).
                    ToArray();            
         }
-        private NamespaceDeclarationSyntax GenerateNamespace(ClassDeclarationSyntax context)
+        private static NamespaceDeclarationSyntax GenerateNamespace(ClassDeclarationSyntax context)
         {
-            return SyntaxFactory.NamespaceDeclaration(SyntaxFactory.ParseName(context.Identifier.ValueText + ".Tests")).
+            return SyntaxFactory.NamespaceDeclaration(SyntaxFactory.ParseName(context.Identifier.ValueText + "Tests")).
                    AddMembers(GenerateClass(context));
         }
 
-        private ClassDeclarationSyntax GenerateClass(ClassDeclarationSyntax context)
+        private static ClassDeclarationSyntax GenerateClass(ClassDeclarationSyntax context)
         {
 
             ClassDeclarationSyntax generatedClass = SyntaxFactory.ClassDeclaration(context.Identifier.ValueText + "Tests").
@@ -42,103 +40,114 @@ namespace TestsGeneratorLibrary
                                   AddMembers(GenerateMethods(context, privateFields));
         }
 
-        private string GetPrivateDependencyName(string name)
+        private static string GetPrivateDependencyName(string name)
         {
             return string.Format("_{0}Dependency", name);
         }
 
-        private string GetPrivateClassName(string name)
+        private static string GetPrivateClassName(string name)
         {
             return string.Format("_{0}Instance", name);
         }
 
-        private string GetMockTypeName(string name)
+        private static string GetMockTypeName(string name)
         {
             return string.Format("Mock<{0}>", name);
         }
 
-        private FieldDeclarationSyntax[] GenerateFields(ClassDeclarationSyntax context)
+        private static FieldDeclarationSyntax GenerateFieldFromTemplate(SyntaxToken modifier, string typename, string identifier)
         {
-            List<FieldDeclarationSyntax> privateFields = new List<FieldDeclarationSyntax>();
-            privateFields.Add(SyntaxFactory.FieldDeclaration
-            (
-                SyntaxFactory.List<AttributeListSyntax>(),
-                SyntaxFactory.TokenList().Add(privateModifier),
-                SyntaxFactory.VariableDeclaration
+            return SyntaxFactory.FieldDeclaration
                 (
-                    SyntaxFactory.ParseTypeName(context.Identifier.ValueText),
-                    SyntaxFactory.SeparatedList<VariableDeclaratorSyntax>().
-                    Add(SyntaxFactory.VariableDeclarator(GetPrivateClassName(context.Identifier.ValueText)))
-                )
-            ));
+                    SyntaxFactory.List<AttributeListSyntax>(),
+                    SyntaxFactory.TokenList().Add(modifier),
+                    SyntaxFactory.VariableDeclaration
+                    (
+                        SyntaxFactory.ParseTypeName(typename),
+                        SyntaxFactory.SeparatedList<VariableDeclaratorSyntax>().
+                        Add(SyntaxFactory.VariableDeclarator(identifier))
+                    )
+                );
+        }
+
+        private static FieldDeclarationSyntax[] GenerateFields(ClassDeclarationSyntax context)
+        { 
+            List<FieldDeclarationSyntax> privateFields = new List<FieldDeclarationSyntax>();
+            if (!context.Modifiers.Any(SyntaxKind.StaticKeyword))
+                privateFields.Add(GenerateFieldFromTemplate(privateModifier, context.Identifier.ValueText, GetPrivateClassName(context.Identifier.ValueText)));
+
             FieldDeclarationSyntax[] dependencies = context.Members.
                 OfType<ConstructorDeclarationSyntax>().
                 Where(ctor => ctor.Modifiers.
                 Any(SyntaxKind.PublicKeyword))?.
                 FirstOrDefault()?.ParameterList?.Parameters.
                 Where(parameter => parameter.Type.ToString()[0] == 'I').
-                Select(parameter => SyntaxFactory.FieldDeclaration
+                Select(parameter => GenerateFieldFromTemplate
                 (
-                    SyntaxFactory.List<AttributeListSyntax>(),
-                    SyntaxFactory.TokenList().Add(privateModifier),
-                    SyntaxFactory.VariableDeclaration
-                    (
-                        SyntaxFactory.ParseTypeName(GetMockTypeName(parameter?.Type.ToString())),
-                        SyntaxFactory.SeparatedList<VariableDeclaratorSyntax>().
-                        Add(SyntaxFactory.VariableDeclarator(GetPrivateDependencyName(parameter?.Identifier.ValueText)))
-                    )
+                    privateModifier,
+                    GetMockTypeName(parameter?.Type.ToString()),
+                    GetPrivateDependencyName(parameter?.Identifier.ValueText)
                 ))?.
-                ToArray();
+                ToArray();               
             if (dependencies != null)
                 privateFields.AddRange(dependencies);           
             return privateFields.ToArray();
         }
 
-        private MethodDeclarationSyntax[] GenerateMethods(ClassDeclarationSyntax classContext, FieldDeclarationSyntax[] fieldContext)
+        private static MethodDeclarationSyntax GenerateMethodFromTemplate(AttributeSyntax attribute, SyntaxToken modifier, TypeSyntax returnType, string identifier, StatementSyntax[] statements)
+        {
+            return SyntaxFactory.MethodDeclaration(returnType, identifier).
+                    AddModifiers(modifier).
+                    AddAttributeLists
+                    (
+                        SyntaxFactory.AttributeList(SyntaxFactory.AttributeList().Attributes.Add(attribute))
+                    ).
+                    AddBodyStatements(statements);
+        }
+
+        private static MethodDeclarationSyntax[] GenerateMethods(ClassDeclarationSyntax classContext, FieldDeclarationSyntax[] fieldContext)
         {
             return classContext.Members.OfType<MethodDeclarationSyntax>().
                 Where(method => method.Modifiers.Any(SyntaxKind.PublicKeyword)).
-                Select(publicMethod => SyntaxFactory.MethodDeclaration
+                Select(publicMethod => GenerateMethodFromTemplate
                 (
-                    voidReturnType, 
-                    publicMethod.Identifier.ValueText + "Test"
-                ).
-                AddModifiers(publicModifier).
-                AddAttributeLists
+                    testAttribute,
+                    publicModifier,
+                    voidReturnType,
+                    publicMethod.Identifier.ValueText + "UnitTest",
+                    GenerateMethodStatements(classContext, publicMethod, fieldContext)
+                )).
+                Prepend(GenerateMethodFromTemplate
                 (
-                    SyntaxFactory.AttributeList
-                    (
-                        SyntaxFactory.AttributeList().Attributes.Add(testAttribute)
-                    )
-                ).
-                AddBodyStatements(GenerateMethodStatements(publicMethod,fieldContext))).
-                Prepend
-                (
-                    SyntaxFactory.MethodDeclaration
-                    (
-                        voidReturnType,
-                        "Setup"
-                    ).
-                    AddModifiers(publicModifier).
-                    AddAttributeLists
-                    (
-                        SyntaxFactory.AttributeList
-                        (
-                            SyntaxFactory.AttributeList().Attributes.Add(setupAttribute)
-                        )
-                    ).
-                    AddBodyStatements(GenerateSetupStatements(classContext,fieldContext))                   
-                ).                
+                    setupAttribute,
+                    publicModifier,
+                    voidReturnType,
+                    "Setup",
+                    GenerateSetupStatements(classContext, fieldContext)
+                )).
                 ToArray();
         }
 
-        private StatementSyntax[] GenerateSetupStatements(ClassDeclarationSyntax classContext, FieldDeclarationSyntax[] fieldContext)
+        private static StatementSyntax GenerateAssignStatementFromTemplate(string typename, string varname, bool newKeyword, string variable, string invokeArgs = "")
+        {
+            return SyntaxFactory.ParseStatement(string.Format
+                                (
+                                    "{0} {1} = {2} {3}{4};",
+                                    typename,
+                                    varname,
+                                    newKeyword ? "new" : "",
+                                    variable,
+                                    newKeyword ? string.Format("({0})",invokeArgs) : ""
+                                ));
+        }
+
+        private static StatementSyntax[] GenerateSetupStatements(ClassDeclarationSyntax classContext, FieldDeclarationSyntax[] fieldContext)
         {
             List<StatementSyntax> statements = new List<StatementSyntax>();
             string ctorArgs = "";
-            if (fieldContext.Length > 1)
+            if (!classContext.Modifiers.Any(SyntaxKind.StaticKeyword))
             {
-                foreach(ParameterSyntax parameter in classContext.Members.OfType<ConstructorDeclarationSyntax>().
+                foreach (ParameterSyntax parameter in classContext.Members.OfType<ConstructorDeclarationSyntax>().
                                                                           Where(ctor => ctor.Modifiers.
                                                                           Any(SyntaxKind.PublicKeyword))?.
                                                                           FirstOrDefault()?.
@@ -149,75 +158,176 @@ namespace TestsGeneratorLibrary
                     if (parameter.Type.ToString()[0] != 'I')
                     {
                         identifier = parameter.Identifier.ValueText;
-                        statements.Add(SyntaxFactory.ParseStatement
+                        statements.Add(GenerateAssignStatementFromTemplate
                             (
-                                string.Format
-                                (
-                                    "{0} {1} = {2};",
-                                    parameter.Type.ToString(),
-                                    identifier,
-                                    "default"
-                                )
+                                parameter.Type.ToString(),
+                                identifier,
+                                false,
+                                parameter.Type.ToString() == "string" ? "\"\"" : "default"
                             ));
-                    }         
+                    }
                     else
                     {
-                        identifier = GetPrivateDependencyName(parameter.Identifier.ValueText);
-                        statements.Add(SyntaxFactory.ParseStatement
+                        identifier = GetPrivateDependencyName(parameter.Identifier.ValueText) + ".Object";
+                        statements.Add(GenerateAssignStatementFromTemplate
                             (
-                                string.Format
-                                (
-                                    "{0} = new {1}();",
-                                    identifier,
-                                    GetMockTypeName(parameter.Type.ToString())
-                                )
+                                "",
+                                GetPrivateDependencyName(parameter.Identifier.ValueText),
+                                true,
+                                GetMockTypeName(parameter.Type.ToString())
                             ));
                     }
                     ctorArgs += identifier + ',';
                 }
                 if (ctorArgs.Length != 0)
                     ctorArgs = ctorArgs.Remove(ctorArgs.Length - 1, 1);
-            }            
-            statements.Add(SyntaxFactory.ParseStatement
-                (
-                    string.Format("{0} = new {1}({2});",
-                    fieldContext[0].Declaration.Variables[0].Identifier.ValueText,
-                    fieldContext[0].Declaration.Type.ToString(),ctorArgs)
-                ));
+
+                statements.Add(GenerateAssignStatementFromTemplate
+                    (
+                        "",
+                        fieldContext[0].Declaration.Variables[0].Identifier.ValueText,
+                        true,
+                        fieldContext[0].Declaration.Type.ToString(),
+                        ctorArgs
+                    ));
+            }
+            
             return statements.ToArray();       
         }
 
-        private StatementSyntax[] GenerateMethodStatements(MethodDeclarationSyntax methodContext, FieldDeclarationSyntax[] fieldContext)
+        private static StatementSyntax GenerateCallStatementFromTemplate(bool returnsVoid, string typename, string varname, string objectname, string methodname, string args="")
         {
-            return new StatementSyntax[] { SyntaxFactory.ParseStatement("Assert.Fail(\"autogenerated\");") };
+            return SyntaxFactory.ParseStatement
+                    (
+                        string.Format
+                        (
+                            "{0} {1}.{2}({3});",
+                            !returnsVoid ? string.Format("{0} {1} = ",typename,varname) : "",
+                            objectname,
+                            methodname,
+                            args
+                        )
+                    );
         }
 
-        private CompilationUnitSyntax[] GenerateTestUnits()
+        private static StatementSyntax[] GenerateMethodStatements(ClassDeclarationSyntax classContext, MethodDeclarationSyntax methodContext, FieldDeclarationSyntax[] fieldContext)
+        {
+            List<StatementSyntax> statements = new List<StatementSyntax>();
+
+            string actMethodArguments = "";
+            foreach (ParameterSyntax parameter in methodContext.ParameterList.Parameters)
+            {
+                if (parameter.Type.ToString()[0] != 'I')
+                {
+                    statements.Add(GenerateAssignStatementFromTemplate
+                        (
+                            parameter.Type.ToString(),
+                            parameter.Identifier.ValueText,
+                            false,
+                            parameter.Type.ToString() == "string" ? "\"\"" : "default"
+                        ));
+                    actMethodArguments += parameter.Identifier.ValueText + ',';
+                }
+                else
+                {
+                    actMethodArguments += GetPrivateDependencyName(parameter.Identifier.ValueText) + ".Object,";
+                }
+            }
+
+            if (actMethodArguments.Length != 0)
+                actMethodArguments = actMethodArguments.Remove(actMethodArguments.Length - 1, 1);
+
+            
+
+            if (methodContext.ReturnType.ToString() != "void")
+            {
+                if (!methodContext.Modifiers.Any(SyntaxKind.StaticKeyword))
+                {
+                    statements.Add(GenerateCallStatementFromTemplate
+                    (
+                        false,
+                        methodContext.ReturnType.ToString(),
+                        "actual",
+                        fieldContext[0].Declaration.Variables[0].Identifier.ValueText,
+                        methodContext.Identifier.ValueText,
+                        actMethodArguments
+                    ));
+                }
+                else
+                {
+                    statements.Add(GenerateCallStatementFromTemplate
+                    (
+                        false,
+                        methodContext.ReturnType.ToString(),
+                        "actual",
+                        classContext.Identifier.ValueText,
+                        methodContext.Identifier.ValueText,
+                        actMethodArguments
+                    ));
+                }
+
+                statements.Add(GenerateAssignStatementFromTemplate
+                    (
+                        methodContext.ReturnType.ToString(),
+                        "expected",
+                        false,
+                        methodContext.ReturnType.ToString() == "string" ? "\"\"" : "default"
+                    ));
+                statements.Add(SyntaxFactory.ParseStatement("Assert.That(actual,Is.EqualTo(expected));"));
+            }               
+            else
+            {
+                if (!methodContext.Modifiers.Any(SyntaxKind.StaticKeyword))
+                {
+                    statements.Add(GenerateCallStatementFromTemplate
+                    (
+                        true,
+                        "",
+                        "",
+                        fieldContext[0].Declaration.Variables[0].Identifier.ValueText,
+                        methodContext.Identifier.ValueText,
+                        actMethodArguments
+                    ));
+                }
+                else
+                {
+                    statements.Add(GenerateCallStatementFromTemplate
+                    (
+                        true,
+                        "",
+                        "",
+                        classContext.Identifier.ValueText,
+                        methodContext.Identifier.ValueText,
+                        actMethodArguments
+                    ));
+                }
+                
+            }
+                
+            statements.Add(SyntaxFactory.ParseStatement("Assert.Fail(\"autogenerated\");"));
+            return statements.ToArray();
+        }
+
+        private static CompilationUnitSyntax[] GenerateTestUnits(SyntaxNode root)
         {
             return root.DescendantNodes().OfType<ClassDeclarationSyntax>().
                 Select(classDecl => SyntaxFactory.CompilationUnit().
-                AddUsings(GenerateUsings()).
+                AddUsings(GenerateUsings(root)).
                 AddMembers(GenerateNamespace(classDecl))).
                 ToArray();
         }
 
-        public struct FileContent
-        {
-            public string filename;
-            public string content;
-        }
 
-        public FileContent[] GenerateTests(string sourceCode)
+        public static Task<TestUnit[]> GenerateTests(string sourceCode)
         {
-            root = CSharpSyntaxTree.ParseText(sourceCode).GetRoot();
 
-            return GenerateTestUnits().
-                   Select(unit => new FileContent 
-                   { 
-                       filename = unit.DescendantNodes().OfType<ClassDeclarationSyntax>().First().Identifier.ValueText,
-                       content = unit.NormalizeWhitespace().ToFullString() 
-                   }).
-                   ToArray();
+            return Task.Run(() => GenerateTestUnits(CSharpSyntaxTree.ParseText(sourceCode).GetRoot()).
+                        Select(unit => new TestUnit
+                        (
+                            unit.DescendantNodes().OfType<ClassDeclarationSyntax>().First().Identifier.ValueText,
+                            unit.NormalizeWhitespace().ToFullString()
+                        )).
+                        ToArray());
         }
    
     }
