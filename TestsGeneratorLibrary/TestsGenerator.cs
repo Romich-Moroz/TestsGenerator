@@ -30,7 +30,7 @@ namespace TestsGeneratorLibrary
         }
         private static NamespaceDeclarationSyntax GenerateNamespace(ClassDeclarationSyntax context)
         {
-            return SyntaxFactory.NamespaceDeclaration(SyntaxFactory.ParseName(context.Identifier.ValueText + "Tests")).
+            return SyntaxFactory.NamespaceDeclaration(SyntaxFactory.ParseName(context.Identifier.ValueText + "UnitTests")).
                    AddMembers(GenerateClass(context));
         }
 
@@ -79,7 +79,12 @@ namespace TestsGeneratorLibrary
         { 
             List<FieldDeclarationSyntax> privateFields = new List<FieldDeclarationSyntax>();
             if (!context.Modifiers.Any(SyntaxKind.StaticKeyword))
-                privateFields.Add(GenerateFieldFromTemplate(privateModifier, context.Identifier.ValueText, GetPrivateClassName(context.Identifier.ValueText)));
+                privateFields.Add(GenerateFieldFromTemplate
+                    (
+                        privateModifier,
+                        context.Identifier.ValueText,
+                        GetPrivateClassName(context.Identifier.ValueText)
+                    ));
 
             FieldDeclarationSyntax[] dependencies = context.Members.
                 OfType<ConstructorDeclarationSyntax>().

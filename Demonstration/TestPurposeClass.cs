@@ -8,9 +8,53 @@ namespace CustomNamespace
     {
 
     }
+
 }
 
-namespace TestsGeneratorLibrary
+namespace CustomNamespace1
+{
+
+    public interface IFoo
+    {
+
+    }
+
+    public class Custom1
+    {
+        public void Method1()
+        {
+
+        }
+
+        public int Method2(int arg)
+        {
+            return 42;
+        }
+
+        public Custom1(int a, string b, IFoo c)
+        {
+
+        }
+    }
+}
+
+namespace CustomNamespace2
+{
+    public class Custom2
+    {
+        public string Method1()
+        {
+            return null;
+        }
+
+        public void Method2(int arg, char b)
+        {
+
+        }
+    }
+}
+
+namespace TestsPurposeClassNamespace
 {
 
     public interface IFoo
@@ -57,10 +101,6 @@ namespace TestsGeneratorLibrary
         private char b;
         private string d;
         private IFoo c;
-
-
-        
-
 
         public int NoFoo(IFoo c, int asd, char dms, string vbn)
         {
