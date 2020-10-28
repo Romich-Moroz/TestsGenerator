@@ -11,19 +11,29 @@ namespace TestsGeneratorLibrary
     {
         private static readonly SyntaxToken publicModifier = SyntaxFactory.Token(SyntaxKind.PublicKeyword);
         private static readonly SyntaxToken privateModifier = SyntaxFactory.Token(SyntaxKind.PrivateKeyword);
+        private static readonly SyntaxToken staticKeyword = SyntaxFactory.Token(SyntaxKind.StaticKeyword);
         private static readonly TypeSyntax voidReturnType = SyntaxFactory.ParseTypeName("void");
         private static readonly AttributeSyntax setupAttribute = SyntaxFactory.Attribute(SyntaxFactory.ParseName("SetUp"));
         private static readonly AttributeSyntax testAttribute = SyntaxFactory.Attribute(SyntaxFactory.ParseName("Test"));
 
         private static UsingDirectiveSyntax[] GenerateUsings(SyntaxNode root, ClassDeclarationSyntax context)
-        {           
+        {
+            List<string> compositeNamespace = new List<string>();
             SyntaxNode node = context.Parent;
             while (node.GetType() != typeof(NamespaceDeclarationSyntax))
+            {
+                compositeNamespace.Add((node as ClassDeclarationSyntax)?.Identifier.ValueText);
                 node = node.Parent;
-            NamespaceDeclarationSyntax nspace = node as NamespaceDeclarationSyntax;
-            
+            }
+            compositeNamespace.Add((node as NamespaceDeclarationSyntax).Name.ToString());
+            compositeNamespace.Reverse();
+
+            UsingDirectiveSyntax space = SyntaxFactory.UsingDirective(SyntaxFactory.ParseName(string.Join('.', compositeNamespace.ToArray())));
+            if (compositeNamespace.Count > 1)
+                space = space.WithStaticKeyword(staticKeyword);
+
             return root.DescendantNodes().OfType<UsingDirectiveSyntax>().
-                   Prepend(SyntaxFactory.UsingDirective(SyntaxFactory.ParseName(nspace.Name.ToString()))).
+                   Prepend(space).
                    Append(SyntaxFactory.UsingDirective(SyntaxFactory.ParseName("NUnit.Framework"))).
                    Append(SyntaxFactory.UsingDirective(SyntaxFactory.ParseName("Moq"))).
                    ToArray();            

@@ -63,21 +63,7 @@ namespace TestsPurposeClassNamespace
     }
 
     public class Foo : IFoo
-    {
-
-        public static class StaticFoo
-        {
-            static int a;
-            static StaticFoo()
-            {
-                a = 5;
-            }
-
-            public static void Bar()
-            {
-
-            }
-        }
+    {    
 
         public static int Bar()
         {
@@ -94,7 +80,24 @@ namespace TestsPurposeClassNamespace
             return 'c';
         }
 
+        public static class StaticFoo
+        {
+            static int a;
+            static StaticFoo()
+            {
+                a = 5;
+            }
+
+            public static void Bar()
+            {
+
+            }
+        }
+
     }
+
+    
+
     public class TestPurposeClass
     {
         private int a;
