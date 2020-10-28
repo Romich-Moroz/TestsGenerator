@@ -12,7 +12,7 @@ namespace Demonstration
     class Pipeline
     {
 
-        public void Generate(string destFolder, string[] filenames, int maxPipelineTasks)
+        public Task Generate(string destFolder, string[] filenames, int maxPipelineTasks)
         {
             var execOptions = new ExecutionDataflowBlockOptions { MaxDegreeOfParallelism = maxPipelineTasks };
             var linkOptions = new DataflowLinkOptions { PropagateCompletion = true };
@@ -24,18 +24,16 @@ namespace Demonstration
                     async path => await File.ReadAllTextAsync(path),
                     execOptions
                 );
-            TransformBlock<string, TestUnit[]> generateTests = new TransformBlock<string, TestUnit[]>
+            TransformManyBlock<string, TestUnit> generateTests = new TransformManyBlock<string, TestUnit>
                 (
-                    async sourceCode => await TestsGenerator.GenerateTests(sourceCode),
+                    async sourceCode => await Task.Run(() => TestsGenerator.GenerateTests(sourceCode)),
                     execOptions
                 );
-            ActionBlock<TestUnit[]> writeFile = new ActionBlock<TestUnit[]>
+            ActionBlock<TestUnit> writeFile = new ActionBlock<TestUnit>
                 (
                     async filesContent =>
                     {
-                        foreach (TestUnit f in filesContent)
-                            await File.WriteAllTextAsync(destFolder + '\\' + f.filename + ".cs", f.sourceCode);
-
+                            await File.WriteAllTextAsync(destFolder + '\\' + filesContent.filename + ".cs", filesContent.sourceCode);
 
                     },
                     execOptions
@@ -50,7 +48,7 @@ namespace Demonstration
             }
 
             loadFile.Complete();
-            writeFile.Completion.Wait();
+            return writeFile.Completion;
         }
     }
 }

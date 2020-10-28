@@ -65,7 +65,7 @@ namespace TestsGeneratorTests
         [Test]
         public void CheckFileCount()
         {
-            int actual = TestsGenerator.GenerateTests(sourceCode).Result.Length;
+            int actual = TestsGenerator.GenerateTests(sourceCode).Length;
             int expected = 2;
             Assert.That(actual, Is.EqualTo(expected));
         }
@@ -73,7 +73,7 @@ namespace TestsGeneratorTests
         [Test]
         public void CheckUsings()
         {
-            TestUnit[] actualUnits = TestsGenerator.GenerateTests(sourceCode).Result;
+            TestUnit[] actualUnits = TestsGenerator.GenerateTests(sourceCode);
             
             string[] actual1 = CSharpSyntaxTree.ParseText(actualUnits[0].sourceCode).
                                                 GetRoot().
@@ -102,7 +102,7 @@ namespace TestsGeneratorTests
         [Test]
         public void CheckNamespaceGeneration()
         {
-            TestUnit[] actualUnits = TestsGenerator.GenerateTests(sourceCode).Result;
+            TestUnit[] actualUnits = TestsGenerator.GenerateTests(sourceCode);
 
             string[] actual1 = CSharpSyntaxTree.ParseText(actualUnits[0].sourceCode).
                                                 GetRoot().
@@ -124,7 +124,7 @@ namespace TestsGeneratorTests
         [Test]
         public void CheckClassGeneration()
         {
-            TestUnit[] actualUnits = TestsGenerator.GenerateTests(sourceCode).Result;
+            TestUnit[] actualUnits = TestsGenerator.GenerateTests(sourceCode);
 
             string actual1 = CSharpSyntaxTree.ParseText(actualUnits[0].sourceCode).
                                                 GetRoot().
@@ -144,7 +144,7 @@ namespace TestsGeneratorTests
         [Test]
         public void CheckPrivateFieldsGeneration()
         {
-            TestUnit[] actualUnits = TestsGenerator.GenerateTests(sourceCode).Result;
+            TestUnit[] actualUnits = TestsGenerator.GenerateTests(sourceCode);
 
             string[] actual1 = CSharpSyntaxTree.ParseText(actualUnits[0].sourceCode).
                                                 GetRoot().
@@ -168,7 +168,7 @@ namespace TestsGeneratorTests
         [Test]
         public void CheckMethodsGeneration()
         {
-            TestUnit[] actualUnits = TestsGenerator.GenerateTests(sourceCode).Result;
+            TestUnit[] actualUnits = TestsGenerator.GenerateTests(sourceCode);
 
             int[] actual1 = CSharpSyntaxTree.ParseText(actualUnits[0].sourceCode).
                                                 GetRoot().

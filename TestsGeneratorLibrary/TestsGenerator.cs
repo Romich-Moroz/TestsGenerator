@@ -343,16 +343,16 @@ namespace TestsGeneratorLibrary
         }
 
 
-        public static Task<TestUnit[]> GenerateTests(string sourceCode)
+        public static TestUnit[] GenerateTests(string sourceCode)
         {
 
-            return Task.Run(() => GenerateTestUnits(CSharpSyntaxTree.ParseText(sourceCode).GetRoot()).
+            return GenerateTestUnits(CSharpSyntaxTree.ParseText(sourceCode).GetRoot()).
                         Select(unit => new TestUnit
                         (
                             unit.DescendantNodes().OfType<ClassDeclarationSyntax>().First().Identifier.ValueText,
                             unit.NormalizeWhitespace().ToFullString()
                         )).
-                        ToArray());
+                        ToArray();
         }
    
     }

@@ -1,12 +1,14 @@
 ﻿
+using System.Threading.Tasks;
+
 namespace Demonstration
 {
     class Program
     {
 
-        static void Main(string[] args)
+        static async Task Main(string[] args)
         {
-            new Pipeline().Generate(".\\Generated Tests", new string[] { "..\\..\\..\\..\\Demonstration\\TestPurposeClass.cs",
+            await new Pipeline().Generate(".\\Generated Tests", new string[] { "..\\..\\..\\..\\Demonstration\\TestPurposeClass.cs",
                                                                          "..\\..\\..\\..\\TestsGeneratorLibrary\\TestsGenerator.cs",}, 2);
         }
     }
